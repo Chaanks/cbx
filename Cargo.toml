@@ -1,0 +1,19 @@
+[package]
+name = "cbx"
+version = "0.1.0"
+authors = ["jarod duret <jarod8405@gmail.com>"]
+edition = "2018"
+
+[profile.dev]
+opt-level = 1
+
+
+[dependencies]
+nalgebra-glm = "0.3"
+env_logger = "0.6"
+log = "0.4"
+failure = "0.1"
+winit = "0.18"
+image = "0.21"
+lazy_static = "1.0"
+rendy = {git="https://github.com/amethyst/rendy.git", rev="5c35277f9080e0ea8b73096f62ddb399cf73820a", features=["texture-image", "vulkan"]}
