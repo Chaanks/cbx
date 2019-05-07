@@ -8,6 +8,11 @@ edition = "2018"
 opt-level = 1
 
 
+[features]
+default = ["rendy"]
+vulkan = ["rendy/vulkan"]
+empty = ["rendy/empty"]
+
 [dependencies]
 nalgebra-glm = "0.3"
 env_logger = "0.6"
@@ -16,4 +21,10 @@ failure = "0.1"
 winit = "0.18"
 image = "0.21"
 lazy_static = "1.0"
-rendy = {git="https://github.com/amethyst/rendy.git", rev="5c35277f9080e0ea8b73096f62ddb399cf73820a", features=["texture-image", "vulkan"]}
+gfx-hal = "0.1"
+
+
+[dependencies.rendy]
+optional = true
+features = ["texture-image"]
+git="https://github.com/amethyst/rendy.git"
