@@ -13,14 +13,164 @@ use rendy::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
     memory::Dynamic,
-    mesh::PosColor,
+    mesh::{PosColor, AsVertex},
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
+    hal,
 };
 use winit::Window;
+use std::sync::Arc;
 
 #[cfg(feature = "vulkan")]
 type Backend = rendy::vulkan::Backend;
+
+lazy_static::lazy_static! {
+    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "shader/shader.vert"),
+        ShaderKind::Vertex,
+        SourceLanguage::GLSL,
+        "main",
+    );
+
+    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "shader/shader.frag"),
+        ShaderKind::Fragment,
+        SourceLanguage::GLSL,
+        "main",
+    );
+
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap();
+}
+
+
+#[derive(Debug, Default)]
+struct PipelineDesc;
+
+#[derive(Debug)]
+struct Pipeline<B: hal::Backend> {
+    vertex: Option<Escape<Buffer<B>>>,
+}
+
+
+impl<B, T> SimpleGraphicsPipelineDesc<B, T> for PipelineDesc
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Pipeline = Pipeline<B>;
+
+    fn depth_stencil(&self) -> Option<hal::pso::DepthStencilDesc> {
+        None
+    }
+
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
+    }
+
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::InstanceRate,
+    )> {
+        vec![PosColor::vertex().gfx_vertex_input_desc(0)]
+    }
+
+    fn build<'a>(
+        self,
+        _ctx: &GraphContext<B>,
+        factory: &mut Factory<B>,
+        _queue: QueueId,
+        _aux: &T,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
+    ) -> Result<Pipeline<B>, failure::Error> {
+        assert!(buffers.is_empty());
+        assert!(images.is_empty());
+        assert!(set_layouts.is_empty());
+
+        Ok(Pipeline { vertex:None })
+    }
+}
+
+impl<B, T> SimpleGraphicsPipeline<B, T> for Pipeline<B>
+where
+    B: hal::Backend,
+    T: ?Sized,
+{
+    type Desc = PipelineDesc;
+
+    fn prepare(
+        &mut self,
+        factory: &Factory<B>,
+        _queue: QueueId,
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
+        _index: usize,
+        _aux: &T,
+    ) -> PrepareResult {
+        if self.vertex.is_none() {
+            let size = PosColor::vertex().stride as u64 * 3;
+
+            let mut vbuf = factory
+                .create_buffer(
+                    BufferInfo {
+                        size,
+                        usage: hal::buffer::Usage::VERTEX,
+                    },
+                    Dynamic,
+                )
+                .unwrap();
+
+            unsafe {
+                //Fresh buffer
+                factory
+                    .upload_visible_buffer(
+                        &mut vbuf,
+                        0,
+                        &[
+                            PosColor {
+                                position: [0.0, -0.5, 0.0].into(),
+                                color: [1.0, 0.0, 0.0, 1.0].into(),
+                            },
+                            PosColor {
+                                position: [0.5, 0.5, 0.0].into(),
+                                color: [0.0, 1.0, 0.0, 1.0].into(),
+                            },
+                            PosColor {
+                                position: [-0.5, 0.5, 0.0].into(),
+                                color: [0.0, 0.0, 1.0, 1.0].into(),
+                            },
+
+                        ],
+                    )
+                    .unwrap();
+            }
+
+            self.vertex = Some(vbuf);
+        }
+
+        PrepareResult::DrawReuse
+    }
+
+    fn draw(
+        &mut self,
+        _layout: &B::PipelineLayout,
+        mut encoder: RenderPassEncoder<'_, B>,
+        _index: usize,
+        _aux: &T,
+    ) {
+        let vbuf = self.vertex.as_ref().unwrap();
+        encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
+        encoder.draw(0..3, 0..1);
+    }
+
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
+
+}
 
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -37,14 +187,14 @@ fn main() {
 }
 
 
-fn init(window: Window) {
+fn init(window: Arc<Window>) {
     let config: Config = Default::default();
 
     // Higher level device interface. Manges memory, resources and queue families.
     let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).expect("Failed to init factory");
 
     // Rendering target bound to window.
-    let surface = factory.create_surface(window.into());
+    let surface = factory.create_surface(window);
 
     // Build graph from nodes and resource.
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
@@ -54,7 +204,7 @@ fn init(window: Window) {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        Some(gfx_hal::command::ClearValue::Color(
+        Some(hal::command::ClearValue::Color(
             [1.0, 1.0, 0.0, 1.0].into(),
         ))
     );

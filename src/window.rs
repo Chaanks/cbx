@@ -1,4 +1,5 @@
 use winit::{EventsLoop, WindowBuilder, Event, WindowEvent, Window, CreationError};
+use std::sync::Arc;
 
 
 pub const WINDOW_NAME: &str = "Hello Window";
@@ -6,7 +7,7 @@ pub const WINDOW_NAME: &str = "Hello Window";
 #[derive(Debug)]
 pub struct WindowState {
     pub event_loop: EventsLoop,
-    pub window: Window,
+    pub window: Arc<Window>,
 }
 
 impl WindowState {
@@ -19,7 +20,7 @@ impl WindowState {
 
         Ok(Self {
             event_loop,
-            window,
+            window: Arc::new(window),
         })
     }
 
