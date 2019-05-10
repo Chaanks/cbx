@@ -5,7 +5,7 @@ allow(unused)
 
 mod window;
 
-use window::WindowState;
+
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
@@ -18,22 +18,22 @@ use rendy::{
     shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
     hal,
 };
-use winit::Window;
-use std::sync::Arc;
+use winit::{Window, EventsLoop};
+use window::WindowState;
 
 #[cfg(feature = "vulkan")]
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "shader/shader.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "shaders/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
     static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "shader/shader.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "shaders/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -181,20 +181,57 @@ fn main() {
         .init();
 
     let mut window = WindowState::default();
-    init(window.window);
+    init(&mut window);
 
 
 }
 
 
-fn init(window: Arc<Window>) {
+fn run(
+    event_loop: &mut EventsLoop,
+    factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
+    mut graph: Graph<Backend, ()>,
+)   -> Result<(), failure::Error> {
+
+    let started = std::time::Instant::now();
+
+    let mut frames = 0u64..;
+    let mut elapsed = started.elapsed();
+
+    for _ in &mut frames {
+        factory.maintain(families);
+        event_loop.poll_events(|_| ());
+        graph.run(factory, families, &mut ());
+
+        elapsed = started.elapsed();
+        if elapsed >= std::time::Duration::new(5, 0) {
+            break;
+        }
+    }
+
+    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+
+    log::info!(
+        "Elappsed: {:?}. Frames: {}. FPS: {}",
+        elapsed,
+        frames.start,
+        frames.start * 1_000_000_000 / elapsed_ns,
+    );
+
+    graph.dispose(factory, &mut ());
+    Ok(())
+}
+
+
+fn init(window_state: &mut WindowState) {
     let config: Config = Default::default();
 
     // Higher level device interface. Manges memory, resources and queue families.
     let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).expect("Failed to init factory");
 
     // Rendering target bound to window.
-    let surface = factory.create_surface(window);
+    let surface = factory.create_surface(window_state.window.clone());
 
     // Build graph from nodes and resource.
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
@@ -209,7 +246,21 @@ fn init(window: Arc<Window>) {
         ))
     );
 
+    let pass = graph_builder.add_node(
+        Pipeline::builder()
+            .into_subpass()
+            .with_color(color)
+            .into_pass(),
 
+    );
+
+    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
+
+    let graph = graph_builder
+        .build(&mut factory, &mut families, &mut ())
+        .unwrap();
+
+    run(&mut window_state.event_loop, &mut factory, &mut families, graph).unwrap();
 
 }
 
