@@ -18,6 +18,7 @@ use rendy::{
     shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
     hal,
 };
+
 use winit::{Window, EventsLoop};
 use window::WindowState;
 
@@ -26,14 +27,14 @@ type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "shaders/shader.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/shaders/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
     static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "shaders/shader.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/shaders/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -56,7 +57,7 @@ struct Pipeline<B: hal::Backend> {
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for PipelineDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Pipeline = Pipeline<B>;
