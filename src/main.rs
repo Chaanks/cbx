@@ -114,7 +114,7 @@ where
         _aux: &T,
     ) -> PrepareResult {
         if self.vertex.is_none() {
-            let size = PosColor::vertex().stride as u64 * 3;
+            let size = PosColor::vertex().stride as u64 * 6;
 
             let mut vbuf = factory
                 .create_buffer(
@@ -142,6 +142,18 @@ where
                                 color: [0.0, 1.0, 0.0, 1.0].into(),
                             },
                             PosColor {
+                                position: [-0.8, 0.2, 0.0].into(),
+                                color: [0.0, 1.0, 1.0, 1.0].into(),
+                            },
+                            PosColor {
+                                position: [0.8, -0.2, 0.0].into(),
+                                color: [0.0, 1.0, 1.0, 1.0].into(),
+                            },
+                            PosColor {
+                                position: [0.0, 0.2, 0.0].into(),
+                                color: [0.0, 1.0, 1.0, 1.0].into(),
+                            },
+                            PosColor {
                                 position: [-0.5, 0.5, 0.0].into(),
                                 color: [0.0, 0.0, 1.0, 1.0].into(),
                             },
@@ -166,7 +178,7 @@ where
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
         encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
-        encoder.draw(0..3, 0..1);
+        encoder.draw(0..6, 0..1);
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
